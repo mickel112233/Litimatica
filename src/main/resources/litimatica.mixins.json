@@ -4,9 +4,9 @@
   "package": "com.litimatica.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "WorldRendererMixin"
   ],
   "client": [
-    "WorldRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

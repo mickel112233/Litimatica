@@ -60,8 +60,6 @@ public class SchematicRenderer {
 
         if (client.player != null) {
             BlockPos playerPos = client.player.getBlockPos();
-
-            // Only update cache if player moved or transformations changed
             if (lastPlayerPos == null || !lastPlayerPos.equals(playerPos)) {
                 updateCache(schematic, playerPos, origin);
                 lastPlayerPos = playerPos;
@@ -100,7 +98,6 @@ public class SchematicRenderer {
                 for (int z = minZ; z <= maxZ; z++) {
                     SchematicBlock sBlock = schematic.block(x, y, z);
                     if (sBlock == null || sBlock.block().equals("minecraft:air")) continue;
-
                     BlockState state = getBlockState(sBlock);
                     if (state != null) {
                         renderCache.add(new CachedBlock(x, y, z, state));
@@ -158,8 +155,8 @@ public class SchematicRenderer {
     }
 
     private static void line(MatrixStack.Entry entry, VertexConsumer vertexConsumer, float x1, float y1, float z1, float x2, float y2, float z2, float r, float g, float b, float a) {
-        vertexConsumer.vertex(entry, x1, y1, z1).color(r, g, b, a).normal(entry, 0, 1, 0);
-        vertexConsumer.vertex(entry, x2, y2, z2).color(r, g, b, a).normal(entry, 0, 1, 0);
+        vertexConsumer.vertex(entry.getPositionMatrix(), x1, y1, z1).color(r, g, b, a).normal(0, 1, 0);
+        vertexConsumer.vertex(entry.getPositionMatrix(), x2, y2, z2).color(r, g, b, a).normal(0, 1, 0);
     }
 
     private static record CachedBlock(int x, int y, int z, BlockState state) {}

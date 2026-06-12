@@ -29,7 +29,12 @@ public class LitimaticaClient implements ClientModInitializer {
                 client.setScreen(new com.litimatica.gui.LitimaticaMainScreen());
             }
 
-            if (client.player != null && client.player.getMainHandStack().isOf(Items.STICK) && !com.litimatica.schematic.LitimaticaSettings.placementLocked) {
+            if (client.player != null && client.player.getMainHandStack().isOf(Items.STICK)) {
+                if (com.litimatica.schematic.LitimaticaSettings.placementLocked) {
+                    client.player.sendMessage(Text.literal("§cPlacement Locked! Toggle in Settings."), true);
+                    return;
+                }
+
                 if (moveCooldown > 0) {
                     moveCooldown--;
                 } else {

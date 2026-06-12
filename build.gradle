@@ -1,6 +1,7 @@
 plugins {
 	id 'fabric-loom' version '1.7-SNAPSHOT'
 	id 'maven-publish'
+    id 'com.gradleup.shadow' version '8.3.3'
 }
 
 version = project.mod_version
@@ -24,8 +25,19 @@ dependencies {
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
     // Schematic4j for parsing schematics
-    implementation 'net.sandrohc:schematic4j:1.1.0'
-    include 'net.sandrohc:schematic4j:1.1.0'
+    implementation ('net.sandrohc:schematic4j:1.1.0') {
+        exclude group: 'org.slf4j'
+    }
+    shadow 'net.sandrohc:schematic4j:1.1.0'
+}
+
+shadowJar {
+    configurations = [project.configurations.shadow]
+}
+
+remapJar {
+    dependsOn shadowJar
+    inputFile = shadowJar.archiveFile
 }
 
 processResources {

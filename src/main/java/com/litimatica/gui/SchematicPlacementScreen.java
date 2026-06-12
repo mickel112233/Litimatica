@@ -52,7 +52,7 @@ public class SchematicPlacementScreen extends Screen {
             button.setMessage(Text.literal("Mirror: " + mirror));
         }).dimensions(centerX - 100, 105, 200, 20).build());
 
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Paste (Fast)"), button -> {
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("Paste (Throttled)"), button -> {
             updatePos();
             if (SchematicManager.getCurrentSchematic() != null) {
                 button.active = false;
@@ -66,7 +66,24 @@ public class SchematicPlacementScreen extends Screen {
                             }
                         });
             }
-        }).dimensions(centerX - 100, 135, 200, 20).build());
+        }).dimensions(centerX - 100, 135, 98, 20).build());
+
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("Paste (Instant)"), button -> {
+            updatePos();
+            if (SchematicManager.getCurrentSchematic() != null) {
+                button.active = false;
+                button.setMessage(Text.literal("Working..."));
+                PasteOptimizer.generateCommandsAsync(SchematicManager.getCurrentSchematic(), placementPos, rotation, mirror)
+                        .thenAccept(commands -> {
+                            for (String cmd : commands) {
+                                if (this.client.player != null) {
+                                    this.client.player.networkHandler.sendChatCommand(cmd.startsWith("/") ? cmd.substring(1) : cmd);
+                                }
+                            }
+                            this.client.execute(() -> this.client.setScreen(null));
+                        });
+            }
+        }).dimensions(centerX + 2, 135, 98, 20).build());
 
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Move to Player"), button -> {
             if (this.client.player != null) {
