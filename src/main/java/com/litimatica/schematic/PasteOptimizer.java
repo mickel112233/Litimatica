@@ -5,36 +5,43 @@ import net.sandrohc.schematic4j.schematic.Schematic;
 import net.sandrohc.schematic4j.schematic.types.SchematicBlock;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.concurrent.CompletableFuture;
 
 public class PasteOptimizer {
+    public static CompletableFuture<List<String>> generateCommandsAsync(Schematic schematic, BlockPos origin, int rotation, String mirror) {
+        return CompletableFuture.supplyAsync(() -> generateCommands(schematic, origin, rotation, mirror));
+    }
+
     public static List<String> generateCommands(Schematic schematic, BlockPos origin, int rotation, String mirror) {
         List<String> commands = new ArrayList<>();
-        Set<BlockPos> visited = new HashSet<>();
+        int width = schematic.width();
+        int height = schematic.height();
+        int length = schematic.length();
 
-        for (int y = 0; y < schematic.height(); y++) {
-            for (int x = 0; x < schematic.width(); x++) {
-                for (int z = 0; z < schematic.length(); z++) {
-                    BlockPos currentPos = new BlockPos(x, y, z);
-                    if (visited.contains(currentPos)) continue;
+        // Use a BitSet for visited positions to save massive amounts of memory compared to HashSet<BlockPos>
+        BitSet visited = new BitSet(width * height * length);
+
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                for (int z = 0; z < length; z++) {
+                    int index = (y * width * length) + (x * length) + z;
+                    if (visited.get(index)) continue;
 
                     SchematicBlock block = schematic.block(x, y, z);
                     if (block == null || block.block().equals("minecraft:air")) {
-                        visited.add(currentPos);
+                        visited.set(index);
                         continue;
                     }
 
-                    Box box = findMaxBox(schematic, x, y, z, visited);
+                    Box box = findMaxBox(schematic, x, y, z, visited, width, height, length);
                     if (box != null) {
-                        // Apply rotation and mirroring to box coordinates
                         BlockPos min = transform(box.min(), schematic, rotation, mirror);
                         BlockPos max = transform(box.max(), schematic, rotation, mirror);
 
-                        // Correct min/max for /fill after transformation
                         int x1 = Math.min(min.getX(), max.getX());
                         int y1 = Math.min(min.getY(), max.getY());
                         int z1 = Math.min(min.getZ(), max.getZ());
@@ -70,11 +77,9 @@ public class PasteOptimizer {
         int y = pos.getY();
         int z = pos.getZ();
 
-        // Mirror
         if (mirror.equals("X")) x = schematic.width() - 1 - x;
         else if (mirror.equals("Z")) z = schematic.length() - 1 - z;
 
-        // Rotation (around origin 0,0,0 relative to schematic)
         int tx = x;
         int tz = z;
         if (rotation == 90) {
@@ -97,7 +102,6 @@ public class PasteOptimizer {
             return block.block();
         }
 
-        // Simple rotation/mirroring for 'facing' property
         Map<String, String> newStates = states.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> {
                     String key = e.getKey();
@@ -115,7 +119,6 @@ public class PasteOptimizer {
     }
 
     private static String rotateFacing(String facing, int rotation, String mirror) {
-        // This is a simplified implementation. Full block state rotation is complex.
         String[] directions = {"north", "east", "south", "west"};
         int idx = -1;
         for (int i = 0; i < directions.length; i++) {
@@ -133,16 +136,17 @@ public class PasteOptimizer {
         return directions[idx];
     }
 
-    private static Box findMaxBox(Schematic schematic, int startX, int startY, int startZ, Set<BlockPos> visited) {
+    private static Box findMaxBox(Schematic schematic, int startX, int startY, int startZ, BitSet visited, int width, int height, int length) {
         SchematicBlock startBlock = schematic.block(startX, startY, startZ);
         if (startBlock == null) return null;
 
         int maxX = startX, maxY = startY, maxZ = startZ;
 
         // Expand X
-        for (int x = startX; x < schematic.width(); x++) {
+        for (int x = startX; x < width; x++) {
+            int idx = (startY * width * length) + (x * length) + startZ;
             SchematicBlock b = schematic.block(x, startY, startZ);
-            if (isSameBlock(b, startBlock) && !visited.contains(new BlockPos(x, startY, startZ))) {
+            if (isSameBlock(b, startBlock) && !visited.get(idx)) {
                 if ((x - startX + 1) > 32768) break;
                 maxX = x;
             } else break;
@@ -150,10 +154,11 @@ public class PasteOptimizer {
 
         // Expand Z
         outer:
-        for (int z = startZ + 1; z < schematic.length(); z++) {
+        for (int z = startZ + 1; z < length; z++) {
             for (int x = startX; x <= maxX; x++) {
+                int idx = (startY * width * length) + (x * length) + z;
                 SchematicBlock b = schematic.block(x, startY, z);
-                if (!isSameBlock(b, startBlock) || visited.contains(new BlockPos(x, startY, z))) {
+                if (!isSameBlock(b, startBlock) || visited.get(idx)) {
                     break outer;
                 }
             }
@@ -163,11 +168,12 @@ public class PasteOptimizer {
 
         // Expand Y
         outer:
-        for (int y = startY + 1; y < schematic.height(); y++) {
+        for (int y = startY + 1; y < height; y++) {
             for (int x = startX; x <= maxX; x++) {
                 for (int z = startZ; z <= maxZ; z++) {
+                    int idx = (y * width * length) + (x * length) + z;
                     SchematicBlock b = schematic.block(x, y, z);
-                    if (!isSameBlock(b, startBlock) || visited.contains(new BlockPos(x, y, z))) {
+                    if (!isSameBlock(b, startBlock) || visited.get(idx)) {
                         break outer;
                     }
                 }
@@ -180,7 +186,8 @@ public class PasteOptimizer {
         for (int x = startX; x <= maxX; x++) {
             for (int y = startY; y <= maxY; y++) {
                 for (int z = startZ; z <= maxZ; z++) {
-                    visited.add(new BlockPos(x, y, z));
+                    int idx = (y * width * length) + (x * length) + z;
+                    visited.set(idx);
                 }
             }
         }

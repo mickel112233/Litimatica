@@ -12,6 +12,7 @@ import org.lwjgl.glfw.GLFW;
 
 public class LitimaticaClient implements ClientModInitializer {
     private static KeyBinding guiKey;
+    private static int moveCooldown = 0;
 
     @Override
     public void onInitializeClient() {
@@ -27,28 +28,46 @@ public class LitimaticaClient implements ClientModInitializer {
                 client.setScreen(new SchematicBrowserScreen(null));
             }
 
-            if (client.player != null && client.player.getMainHandStack().isOf(Items.STICK)) {
-                if (InputUtil.isKeyPressed(client.getWindow().getHandle(), GLFW.GLFW_KEY_UP)) {
-                    com.litimatica.gui.SchematicPlacementScreen.placementPos = com.litimatica.gui.SchematicPlacementScreen.placementPos.north();
+            if (client.player != null && client.player.getMainHandStack().isOf(Items.STICK) && !com.litimatica.schematic.LitimaticaSettings.placementLocked) {
+                if (moveCooldown > 0) {
+                    moveCooldown--;
+                } else {
+                    boolean moved = false;
+                    if (InputUtil.isKeyPressed(client.getWindow().getHandle(), GLFW.GLFW_KEY_UP)) {
+                        com.litimatica.gui.SchematicPlacementScreen.placementPos = com.litimatica.gui.SchematicPlacementScreen.placementPos.north();
+                        moved = true;
+                    }
+                    if (InputUtil.isKeyPressed(client.getWindow().getHandle(), GLFW.GLFW_KEY_DOWN)) {
+                        com.litimatica.gui.SchematicPlacementScreen.placementPos = com.litimatica.gui.SchematicPlacementScreen.placementPos.south();
+                        moved = true;
+                    }
+                    if (InputUtil.isKeyPressed(client.getWindow().getHandle(), GLFW.GLFW_KEY_LEFT)) {
+                        com.litimatica.gui.SchematicPlacementScreen.placementPos = com.litimatica.gui.SchematicPlacementScreen.placementPos.west();
+                        moved = true;
+                    }
+                    if (InputUtil.isKeyPressed(client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT)) {
+                        com.litimatica.gui.SchematicPlacementScreen.placementPos = com.litimatica.gui.SchematicPlacementScreen.placementPos.east();
+                        moved = true;
+                    }
+                    if (InputUtil.isKeyPressed(client.getWindow().getHandle(), GLFW.GLFW_KEY_PAGE_UP)) {
+                        com.litimatica.gui.SchematicPlacementScreen.placementPos = com.litimatica.gui.SchematicPlacementScreen.placementPos.up();
+                        moved = true;
+                    }
+                    if (InputUtil.isKeyPressed(client.getWindow().getHandle(), GLFW.GLFW_KEY_PAGE_DOWN)) {
+                        com.litimatica.gui.SchematicPlacementScreen.placementPos = com.litimatica.gui.SchematicPlacementScreen.placementPos.down();
+                        moved = true;
+                    }
+
+                    if (moved) {
+                        moveCooldown = InputUtil.isKeyPressed(client.getWindow().getHandle(), GLFW.GLFW_KEY_LEFT_SHIFT) ? 2 : 5;
+                    }
                 }
-                if (InputUtil.isKeyPressed(client.getWindow().getHandle(), GLFW.GLFW_KEY_DOWN)) {
-                    com.litimatica.gui.SchematicPlacementScreen.placementPos = com.litimatica.gui.SchematicPlacementScreen.placementPos.south();
-                }
-                if (InputUtil.isKeyPressed(client.getWindow().getHandle(), GLFW.GLFW_KEY_LEFT)) {
-                    com.litimatica.gui.SchematicPlacementScreen.placementPos = com.litimatica.gui.SchematicPlacementScreen.placementPos.west();
-                }
-                if (InputUtil.isKeyPressed(client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT)) {
-                    com.litimatica.gui.SchematicPlacementScreen.placementPos = com.litimatica.gui.SchematicPlacementScreen.placementPos.east();
-                }
-                if (InputUtil.isKeyPressed(client.getWindow().getHandle(), GLFW.GLFW_KEY_PAGE_UP)) {
-                    com.litimatica.gui.SchematicPlacementScreen.placementPos = com.litimatica.gui.SchematicPlacementScreen.placementPos.up();
-                }
-                if (InputUtil.isKeyPressed(client.getWindow().getHandle(), GLFW.GLFW_KEY_PAGE_DOWN)) {
-                    com.litimatica.gui.SchematicPlacementScreen.placementPos = com.litimatica.gui.SchematicPlacementScreen.placementPos.down();
-                }
+            } else {
+                moveCooldown = 0;
             }
 
             com.litimatica.schematic.CommandQueue.onTick();
+            com.litimatica.schematic.LitimaticaSettings.onTick();
         });
     }
 }

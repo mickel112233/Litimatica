@@ -1,6 +1,7 @@
 package com.litimatica.gui;
 
 import com.litimatica.schematic.CommandQueue;
+import com.litimatica.schematic.LitimaticaSettings;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -18,23 +19,41 @@ public class SettingsScreen extends Screen {
 
     @Override
     protected void init() {
-        speedField = new TextFieldWidget(textRenderer, width / 2 - 50, 80, 100, 20, Text.literal("Commands Per Second"));
+        int centerX = width / 2;
+
+        speedField = new TextFieldWidget(textRenderer, centerX - 50, 50, 100, 20, Text.literal("Commands Per Second"));
         speedField.setText(String.valueOf(CommandQueue.getCommandsPerSecond()));
         this.addSelectableChild(speedField);
+
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("Hologram: " + (LitimaticaSettings.hologramEnabled ? "ON" : "OFF")), button -> {
+            LitimaticaSettings.hologramEnabled = !LitimaticaSettings.hologramEnabled;
+            button.setMessage(Text.literal("Hologram: " + (LitimaticaSettings.hologramEnabled ? "ON" : "OFF")));
+        }).dimensions(centerX - 100, 80, 200, 20).build());
+
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("Auto-Place: " + (LitimaticaSettings.autoPlaceEnabled ? "ON" : "OFF")), button -> {
+            LitimaticaSettings.autoPlaceEnabled = !LitimaticaSettings.autoPlaceEnabled;
+            button.setMessage(Text.literal("Auto-Place: " + (LitimaticaSettings.autoPlaceEnabled ? "ON" : "OFF")));
+        }).dimensions(centerX - 100, 105, 200, 20).build());
+
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("Placement Locked: " + (LitimaticaSettings.placementLocked ? "ON" : "OFF")), button -> {
+            LitimaticaSettings.placementLocked = !LitimaticaSettings.placementLocked;
+            button.setMessage(Text.literal("Placement Locked: " + (LitimaticaSettings.placementLocked ? "ON" : "OFF")));
+        }).dimensions(centerX - 100, 130, 200, 20).build());
 
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Save & Back"), button -> {
             try {
                 CommandQueue.setCommandsPerSecond(Integer.parseInt(speedField.getText()));
             } catch (NumberFormatException ignored) {}
             this.client.setScreen(parent);
-        }).dimensions(width / 2 - 100, 120, 200, 20).build());
+        }).dimensions(centerX - 100, 170, 200, 20).build());
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        this.renderBackground(context, mouseX, mouseY, delta);
         super.render(context, mouseX, mouseY, delta);
-        context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 20, 0xFFFFFF);
-        context.drawCenteredTextWithShadow(textRenderer, Text.literal("Commands Per Second (Anti-Kick)"), width / 2, 65, 0xA0A0A0);
+        context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 10, 0xFFFFFF);
+        context.drawCenteredTextWithShadow(textRenderer, Text.literal("Commands Per Second"), width / 2, 38, 0xA0A0A0);
         speedField.render(context, mouseX, mouseY, delta);
     }
 }

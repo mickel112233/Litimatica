@@ -55,10 +55,14 @@ public class SchematicPlacementScreen extends Screen {
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Paste (Fast)"), button -> {
             updatePos();
             if (SchematicManager.getCurrentSchematic() != null) {
-                List<String> commands = PasteOptimizer.generateCommands(SchematicManager.getCurrentSchematic(), placementPos, rotation, mirror);
-                CommandQueue.addCommands(commands);
+                button.active = false;
+                button.setMessage(Text.literal("Optimizing..."));
+                PasteOptimizer.generateCommandsAsync(SchematicManager.getCurrentSchematic(), placementPos, rotation, mirror)
+                        .thenAccept(commands -> {
+                            CommandQueue.addCommands(commands);
+                            this.client.execute(() -> this.client.setScreen(null));
+                        });
             }
-            this.client.setScreen(null);
         }).dimensions(centerX - 100, 135, 200, 20).build());
 
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Settings"), button -> {
