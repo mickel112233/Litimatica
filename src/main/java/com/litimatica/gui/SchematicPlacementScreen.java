@@ -56,17 +56,25 @@ public class SchematicPlacementScreen extends Screen {
             updatePos();
             if (SchematicManager.getCurrentSchematic() != null) {
                 button.active = false;
-                button.setMessage(Text.literal("Optimizing..."));
+                button.setMessage(Text.literal("Working... (Async)"));
                 PasteOptimizer.generateCommandsAsync(SchematicManager.getCurrentSchematic(), placementPos, rotation, mirror)
                         .thenAccept(commands -> {
                             CommandQueue.addCommands(commands);
                             this.client.execute(() -> this.client.setScreen(null));
+                            if (this.client.player != null) {
+                                this.client.player.sendMessage(Text.literal("§aOptimization Complete! Commands added to queue: " + commands.size()), true);
+                            }
                         });
             }
         }).dimensions(centerX - 100, 135, 200, 20).build());
 
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Settings"), button -> {
-            this.client.setScreen(new SettingsScreen(this));
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("Move to Player"), button -> {
+            if (this.client.player != null) {
+                placementPos = this.client.player.getBlockPos();
+                xField.setText(String.valueOf(placementPos.getX()));
+                yField.setText(String.valueOf(placementPos.getY()));
+                zField.setText(String.valueOf(placementPos.getZ()));
+            }
         }).dimensions(centerX - 100, 160, 200, 20).build());
 
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Back"), button -> {
