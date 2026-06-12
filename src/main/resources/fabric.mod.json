@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "litimatica",
+  "version": "${version}",
+  "name": "Litimatica",
+  "description": "A schematic mod that uses /fill for fast building.",
+  "authors": [
+    "Jules"
+  ],
+  "contact": {
+    "homepage": "https://github.com/Jules/litimatica",
+    "sources": "https://github.com/Jules/litimatica"
+  },
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.litimatica.Litimatica"
+    ],
+    "client": [
+      "com.litimatica.LitimaticaClient"
+    ]
+  },
+  "mixins": [
+    "litimatica.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.5",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
