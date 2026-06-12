@@ -81,6 +81,7 @@ public class SchematicPlacementScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        this.renderBackground(context, mouseX, mouseY, delta);
         super.render(context, mouseX, mouseY, delta);
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 10, 0xFFFFFF);
         context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Placement Coordinates:"), this.width / 2, 35, 0xA0A0A0);
