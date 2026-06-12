@@ -12,7 +12,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class PasteOptimizer {
-    public static List<String> generateCommands(Schematic schematic, BlockPos origin) {
+    public static List<String> generateCommands(Schematic schematic, BlockPos origin, int rotation, String mirror) {
         List<String> commands = new ArrayList<>();
         Set<BlockPos> visited = new HashSet<>();
 
@@ -30,18 +30,31 @@ public class PasteOptimizer {
 
                     Box box = findMaxBox(schematic, x, y, z, visited);
                     if (box != null) {
-                        BlockPos min = origin.add(box.min());
-                        BlockPos max = origin.add(box.max());
-                        String blockState = getBlockStateString(block);
+                        // Apply rotation and mirroring to box coordinates
+                        BlockPos min = transform(box.min(), schematic, rotation, mirror);
+                        BlockPos max = transform(box.max(), schematic, rotation, mirror);
+
+                        // Correct min/max for /fill after transformation
+                        int x1 = Math.min(min.getX(), max.getX());
+                        int y1 = Math.min(min.getY(), max.getY());
+                        int z1 = Math.min(min.getZ(), max.getZ());
+                        int x2 = Math.max(min.getX(), max.getX());
+                        int y2 = Math.max(min.getY(), max.getY());
+                        int z2 = Math.max(min.getZ(), max.getZ());
+
+                        BlockPos realMin = origin.add(x1, y1, z1);
+                        BlockPos realMax = origin.add(x2, y2, z2);
+
+                        String blockState = getBlockStateString(block, rotation, mirror);
 
                         if (box.volume() > 1) {
                             commands.add(String.format("/fill %d %d %d %d %d %d %s",
-                                    min.getX(), min.getY(), min.getZ(),
-                                    max.getX(), max.getY(), max.getZ(),
+                                    realMin.getX(), realMin.getY(), realMin.getZ(),
+                                    realMax.getX(), realMax.getY(), realMax.getZ(),
                                     blockState));
                         } else {
                             commands.add(String.format("/setblock %d %d %d %s",
-                                    min.getX(), min.getY(), min.getZ(),
+                                    realMin.getX(), realMin.getY(), realMin.getZ(),
                                     blockState));
                         }
                     }
@@ -52,15 +65,72 @@ public class PasteOptimizer {
         return commands;
     }
 
-    private static String getBlockStateString(SchematicBlock block) {
+    private static BlockPos transform(BlockPos pos, Schematic schematic, int rotation, String mirror) {
+        int x = pos.getX();
+        int y = pos.getY();
+        int z = pos.getZ();
+
+        // Mirror
+        if (mirror.equals("X")) x = schematic.width() - 1 - x;
+        else if (mirror.equals("Z")) z = schematic.length() - 1 - z;
+
+        // Rotation (around origin 0,0,0 relative to schematic)
+        int tx = x;
+        int tz = z;
+        if (rotation == 90) {
+            tx = schematic.length() - 1 - z;
+            tz = x;
+        } else if (rotation == 180) {
+            tx = schematic.width() - 1 - x;
+            tz = schematic.length() - 1 - z;
+        } else if (rotation == 270) {
+            tx = z;
+            tz = schematic.width() - 1 - x;
+        }
+
+        return new BlockPos(tx, y, tz);
+    }
+
+    private static String getBlockStateString(SchematicBlock block, int rotation, String mirror) {
         Map<String, String> states = block.states();
         if (states == null || states.isEmpty()) {
             return block.block();
         }
-        String props = states.entrySet().stream()
+
+        // Simple rotation/mirroring for 'facing' property
+        Map<String, String> newStates = states.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> {
+                    String key = e.getKey();
+                    String val = e.getValue();
+                    if (key.equals("facing")) {
+                        return rotateFacing(val, rotation, mirror);
+                    }
+                    return val;
+                }));
+
+        String props = newStates.entrySet().stream()
                 .map(e -> e.getKey() + "=" + e.getValue())
                 .collect(Collectors.joining(","));
         return block.block() + "[" + props + "]";
+    }
+
+    private static String rotateFacing(String facing, int rotation, String mirror) {
+        // This is a simplified implementation. Full block state rotation is complex.
+        String[] directions = {"north", "east", "south", "west"};
+        int idx = -1;
+        for (int i = 0; i < directions.length; i++) {
+            if (directions[i].equals(facing)) {
+                idx = i;
+                break;
+            }
+        }
+        if (idx == -1) return facing;
+
+        if (mirror.equals("X") && (facing.equals("west") || facing.equals("east"))) idx = (idx + 2) % 4;
+        if (mirror.equals("Z") && (facing.equals("north") || facing.equals("south"))) idx = (idx + 2) % 4;
+
+        idx = (idx + (rotation / 90)) % 4;
+        return directions[idx];
     }
 
     private static Box findMaxBox(Schematic schematic, int startX, int startY, int startZ, Set<BlockPos> visited) {
