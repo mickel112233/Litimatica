@@ -24,6 +24,11 @@ public class SchematicRenderer {
     private static BlockPos lastPlayerPos = null;
     private static List<CachedBlock> renderCache = new ArrayList<>();
 
+    public static void clearCache() {
+        renderCache.clear();
+        lastPlayerPos = null;
+    }
+
     public static void render(MatrixStack matrices, VertexConsumerProvider vertexConsumers, double cameraX, double cameraY, double cameraZ) {
         Schematic schematic = SchematicManager.getCurrentSchematic();
         if (schematic == null || vertexConsumers == null || !LitimaticaSettings.hologramEnabled) return;

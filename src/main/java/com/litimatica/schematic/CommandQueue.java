@@ -1,16 +1,16 @@
 package com.litimatica.schematic;
 
 import net.minecraft.client.MinecraftClient;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.Collection;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class CommandQueue {
-    private static final Queue<String> queue = new LinkedList<>();
+    private static final Queue<String> queue = new ConcurrentLinkedQueue<>();
     private static int commandsPerSecond = 10; // Default requested by user
     private static double commandAccumulator = 0;
 
-    public static void addCommands(List<String> commands) {
+    public static void addCommands(Collection<String> commands) {
         queue.addAll(commands);
     }
 

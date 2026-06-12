@@ -63,6 +63,7 @@ public class SchematicBrowserScreen extends Screen {
 
         class Entry extends AlwaysSelectedEntryListWidget.Entry<Entry> {
             final File file;
+            long blockCount = -1;
 
             public Entry(File file) {
                 this.file = file;
@@ -71,6 +72,17 @@ public class SchematicBrowserScreen extends Screen {
             @Override
             public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
                 context.drawCenteredTextWithShadow(textRenderer, file.getName(), x + entryWidth / 2, y + 5, 0xFFFFFF);
+
+                if (hovered) {
+                    List<Text> tooltip = new ArrayList<>();
+                    tooltip.add(Text.literal("§eFile: §f" + file.getName()));
+                    if (blockCount == -1) {
+                        // Rough estimate from file size for now to avoid freezing the UI with parsing
+                        blockCount = file.length() / 10; // Very rough
+                    }
+                    tooltip.add(Text.literal("§6Estimated Blocks: §f~" + blockCount));
+                    context.drawTooltip(textRenderer, tooltip, mouseX, mouseY);
+                }
             }
 
             @Override

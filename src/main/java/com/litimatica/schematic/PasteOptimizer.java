@@ -22,7 +22,12 @@ public class PasteOptimizer {
         int height = schematic.height();
         int length = schematic.length();
 
-        // Use a BitSet for visited positions to save massive amounts of memory compared to HashSet<BlockPos>
+        // Safety cap for extremely large schematics to prevent OOM
+        if ((long)width * height * length > 1000000000L) { // 1 Billion blocks
+             // Log error or handle
+             return commands;
+        }
+
         BitSet visited = new BitSet(width * height * length);
 
         for (int y = 0; y < height; y++) {
@@ -37,33 +42,74 @@ public class PasteOptimizer {
                         continue;
                     }
 
-                    Box box = findMaxBox(schematic, x, y, z, visited, width, height, length);
-                    if (box != null) {
-                        BlockPos min = transform(box.min(), schematic, rotation, mirror);
-                        BlockPos max = transform(box.max(), schematic, rotation, mirror);
+                    int startX = x, startY = y, startZ = z;
+                    int maxX = x, maxY = y, maxZ = z;
 
-                        int x1 = Math.min(min.getX(), max.getX());
-                        int y1 = Math.min(min.getY(), max.getY());
-                        int z1 = Math.min(min.getZ(), max.getZ());
-                        int x2 = Math.max(min.getX(), max.getX());
-                        int y2 = Math.max(min.getY(), max.getY());
-                        int z2 = Math.max(min.getZ(), max.getZ());
+                    // Expand X
+                    for (int ex = x + 1; ex < width; ex++) {
+                        int eidx = (y * width * length) + (ex * length) + z;
+                        if (!visited.get(eidx) && isSameBlock(schematic.block(ex, y, z), block)) {
+                            if ((ex - x + 1) > 32) break; // Limit X to keep commands short or reasonable
+                            maxX = ex;
+                        } else break;
+                    }
 
-                        BlockPos realMin = origin.add(x1, y1, z1);
-                        BlockPos realMax = origin.add(x2, y2, z2);
-
-                        String blockState = getBlockStateString(block, rotation, mirror);
-
-                        if (box.volume() > 1) {
-                            commands.add(String.format("/fill %d %d %d %d %d %d %s",
-                                    realMin.getX(), realMin.getY(), realMin.getZ(),
-                                    realMax.getX(), realMax.getY(), realMax.getZ(),
-                                    blockState));
-                        } else {
-                            commands.add(String.format("/setblock %d %d %d %s",
-                                    realMin.getX(), realMin.getY(), realMin.getZ(),
-                                    blockState));
+                    // Expand Z
+                    outer:
+                    for (int ez = z + 1; ez < length; ez++) {
+                        for (int ex = x; ex <= maxX; ex++) {
+                            int eidx = (y * width * length) + (ex * length) + ez;
+                            if (visited.get(eidx) || !isSameBlock(schematic.block(ex, y, ez), block)) {
+                                break outer;
+                            }
                         }
+                        if ((maxX - x + 1) * (ez - z + 1) > 32768) break;
+                        maxZ = ez;
+                    }
+
+                    // Expand Y
+                    outer:
+                    for (int ey = y + 1; ey < height; ey++) {
+                        for (int ex = x; ex <= maxX; ex++) {
+                            for (int ez = z; ez <= maxZ; ez++) {
+                                int eidx = (ey * width * length) + (ex * length) + ez;
+                                if (visited.get(eidx) || !isSameBlock(schematic.block(ex, ey, ez), block)) {
+                                    break outer;
+                                }
+                            }
+                        }
+                        if ((long)(maxX - x + 1) * (maxZ - z + 1) * (ey - y + 1) > 32768) break;
+                        maxY = ey;
+                    }
+
+                    // Mark visited
+                    for (int vx = x; vx <= maxX; vx++) {
+                        for (int vy = y; vy <= maxY; vy++) {
+                            for (int vz = z; vz <= maxZ; vz++) {
+                                visited.set((vy * width * length) + (vx * length) + vz);
+                            }
+                        }
+                    }
+
+                    // Transform and add command
+                    BlockPos minTrans = transform(new BlockPos(x, y, z), schematic, rotation, mirror);
+                    BlockPos maxTrans = transform(new BlockPos(maxX, maxY, maxZ), schematic, rotation, mirror);
+
+                    int rx1 = Math.min(minTrans.getX(), maxTrans.getX());
+                    int ry1 = Math.min(minTrans.getY(), maxTrans.getY());
+                    int rz1 = Math.min(minTrans.getZ(), maxTrans.getZ());
+                    int rx2 = Math.max(minTrans.getX(), maxTrans.getX());
+                    int ry2 = Math.max(minTrans.getY(), maxTrans.getY());
+                    int rz2 = Math.max(minTrans.getZ(), maxTrans.getZ());
+
+                    String stateStr = getBlockStateString(block, rotation, mirror);
+                    if (rx1 == rx2 && ry1 == ry2 && rz1 == rz2) {
+                        commands.add(String.format("setblock %d %d %d %s", origin.getX() + rx1, origin.getY() + ry1, origin.getZ() + rz1, stateStr));
+                    } else {
+                        commands.add(String.format("fill %d %d %d %d %d %d %s",
+                            origin.getX() + rx1, origin.getY() + ry1, origin.getZ() + rz1,
+                            origin.getX() + rx2, origin.getY() + ry2, origin.getZ() + rz2,
+                            stateStr));
                     }
                 }
             }
@@ -76,128 +122,38 @@ public class PasteOptimizer {
         int x = pos.getX();
         int y = pos.getY();
         int z = pos.getZ();
-
         if (mirror.equals("X")) x = schematic.width() - 1 - x;
         else if (mirror.equals("Z")) z = schematic.length() - 1 - z;
 
-        int tx = x;
-        int tz = z;
-        if (rotation == 90) {
-            tx = schematic.length() - 1 - z;
-            tz = x;
-        } else if (rotation == 180) {
-            tx = schematic.width() - 1 - x;
-            tz = schematic.length() - 1 - z;
-        } else if (rotation == 270) {
-            tx = z;
-            tz = schematic.width() - 1 - x;
-        }
-
+        int tx = x, tz = z;
+        if (rotation == 90) { tx = schematic.length() - 1 - z; tz = x; }
+        else if (rotation == 180) { tx = schematic.width() - 1 - x; tz = schematic.length() - 1 - z; }
+        else if (rotation == 270) { tx = z; tz = schematic.width() - 1 - x; }
         return new BlockPos(tx, y, tz);
     }
 
     private static String getBlockStateString(SchematicBlock block, int rotation, String mirror) {
         Map<String, String> states = block.states();
-        if (states == null || states.isEmpty()) {
-            return block.block();
-        }
-
+        if (states == null || states.isEmpty()) return block.block();
         Map<String, String> newStates = states.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> {
-                    String key = e.getKey();
-                    String val = e.getValue();
-                    if (key.equals("facing")) {
-                        return rotateFacing(val, rotation, mirror);
-                    }
-                    return val;
-                }));
-
-        String props = newStates.entrySet().stream()
-                .map(e -> e.getKey() + "=" + e.getValue())
-                .collect(Collectors.joining(","));
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getKey().equals("facing") ? rotateFacing(e.getValue(), rotation, mirror) : e.getValue()));
+        String props = newStates.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining(","));
         return block.block() + "[" + props + "]";
     }
 
     private static String rotateFacing(String facing, int rotation, String mirror) {
         String[] directions = {"north", "east", "south", "west"};
         int idx = -1;
-        for (int i = 0; i < directions.length; i++) {
-            if (directions[i].equals(facing)) {
-                idx = i;
-                break;
-            }
-        }
+        for (int i = 0; i < directions.length; i++) if (directions[i].equals(facing)) { idx = i; break; }
         if (idx == -1) return facing;
-
         if (mirror.equals("X") && (facing.equals("west") || facing.equals("east"))) idx = (idx + 2) % 4;
         if (mirror.equals("Z") && (facing.equals("north") || facing.equals("south"))) idx = (idx + 2) % 4;
-
         idx = (idx + (rotation / 90)) % 4;
         return directions[idx];
     }
 
-    private static Box findMaxBox(Schematic schematic, int startX, int startY, int startZ, BitSet visited, int width, int height, int length) {
-        SchematicBlock startBlock = schematic.block(startX, startY, startZ);
-        if (startBlock == null) return null;
-
-        int maxX = startX, maxY = startY, maxZ = startZ;
-
-        // Expand X
-        for (int x = startX; x < width; x++) {
-            int idx = (startY * width * length) + (x * length) + startZ;
-            SchematicBlock b = schematic.block(x, startY, startZ);
-            if (isSameBlock(b, startBlock) && !visited.get(idx)) {
-                if ((x - startX + 1) > 32768) break;
-                maxX = x;
-            } else break;
-        }
-
-        // Expand Z
-        outer:
-        for (int z = startZ + 1; z < length; z++) {
-            for (int x = startX; x <= maxX; x++) {
-                int idx = (startY * width * length) + (x * length) + z;
-                SchematicBlock b = schematic.block(x, startY, z);
-                if (!isSameBlock(b, startBlock) || visited.get(idx)) {
-                    break outer;
-                }
-            }
-            if ((long)(maxX - startX + 1) * (z - startZ + 1) > 32768) break;
-            maxZ = z;
-        }
-
-        // Expand Y
-        outer:
-        for (int y = startY + 1; y < height; y++) {
-            for (int x = startX; x <= maxX; x++) {
-                for (int z = startZ; z <= maxZ; z++) {
-                    int idx = (y * width * length) + (x * length) + z;
-                    SchematicBlock b = schematic.block(x, y, z);
-                    if (!isSameBlock(b, startBlock) || visited.get(idx)) {
-                        break outer;
-                    }
-                }
-            }
-            if ((long)(maxX - startX + 1) * (maxZ - startZ + 1) * (y - startY + 1) > 32768) break;
-            maxY = y;
-        }
-
-        // Mark as visited
-        for (int x = startX; x <= maxX; x++) {
-            for (int y = startY; y <= maxY; y++) {
-                for (int z = startZ; z <= maxZ; z++) {
-                    int idx = (y * width * length) + (x * length) + z;
-                    visited.set(idx);
-                }
-            }
-        }
-
-        return new Box(new BlockPos(startX, startY, startZ), new BlockPos(maxX, maxY, maxZ), startBlock.block());
-    }
-
     private static boolean isSameBlock(SchematicBlock b1, SchematicBlock b2) {
         if (b1 == null || b2 == null) return false;
-        if (!b1.block().equals(b2.block())) return false;
-        return b1.states().equals(b2.states());
+        return b1.block().equals(b2.block()) && b1.states().equals(b2.states());
     }
 }

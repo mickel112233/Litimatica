@@ -13,7 +13,7 @@ public class LitimaticaMainScreen extends Screen {
     @Override
     protected void init() {
         int centerX = width / 2;
-        int startY = height / 2 - 40;
+        int startY = height / 2 - 50;
 
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Schematic Browser"), button -> {
             this.client.setScreen(new SchematicBrowserScreen(this));
@@ -27,15 +27,20 @@ public class LitimaticaMainScreen extends Screen {
             this.client.setScreen(new SettingsScreen(this));
         }).dimensions(centerX - 100, startY + 50, 200, 20).build());
 
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("§cCancel Building"), button -> {
+            com.litimatica.schematic.CommandQueue.clear();
+            if (this.client.player != null) this.client.player.sendMessage(Text.literal("§cBuild cancelled."), true);
+        }).dimensions(centerX - 100, startY + 75, 200, 20).build());
+
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Close"), button -> {
             this.close();
-        }).dimensions(centerX - 100, startY + 85, 200, 20).build());
+        }).dimensions(centerX - 100, startY + 110, 200, 20).build());
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         this.renderBackground(context, mouseX, mouseY, delta);
         super.render(context, mouseX, mouseY, delta);
-        context.drawCenteredTextWithShadow(textRenderer, title, width / 2, height / 2 - 70, 0xFFFFFF);
+        context.drawCenteredTextWithShadow(textRenderer, title, width / 2, height / 2 - 80, 0xFFFFFF);
     }
 }

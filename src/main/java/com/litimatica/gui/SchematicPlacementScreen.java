@@ -68,19 +68,21 @@ public class SchematicPlacementScreen extends Screen {
             }
         }).dimensions(centerX - 100, 135, 98, 20).build());
 
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Paste (Instant)"), button -> {
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("Paste (Fast)"), button -> {
             updatePos();
             if (SchematicManager.getCurrentSchematic() != null) {
                 button.active = false;
                 button.setMessage(Text.literal("Working..."));
                 PasteOptimizer.generateCommandsAsync(SchematicManager.getCurrentSchematic(), placementPos, rotation, mirror)
                         .thenAccept(commands -> {
-                            for (String cmd : commands) {
-                                if (this.client.player != null) {
-                                    this.client.player.networkHandler.sendChatCommand(cmd.startsWith("/") ? cmd.substring(1) : cmd);
-                                }
-                            }
+                            // Instead of sending all at once which crashes the network buffer,
+                            // we'll put them in the queue with a very high speed
+                            CommandQueue.setCommandsPerSecond(1000);
+                            CommandQueue.addCommands(commands);
                             this.client.execute(() -> this.client.setScreen(null));
+                            if (this.client.player != null) {
+                                this.client.player.sendMessage(Text.literal("§aFast Build Started! (" + commands.size() + " commands)"), true);
+                            }
                         });
             }
         }).dimensions(centerX + 2, 135, 98, 20).build());
